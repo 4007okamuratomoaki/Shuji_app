@@ -2,8 +2,11 @@ import streamlit as st
 import easyocr
 import cv2
 import numpy as np
+import hashlib
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
+from difflib import SequenceMatcher
+import os
 
 # Streamlitページ設定
 st.set_page_config(page_title="習字サポート", layout="centered")
@@ -117,9 +120,29 @@ def add_text_to_image(image, text, reference_char, font_path='玉ねぎ楷書激
 
     return combined_image
 
+# フォント差異の評価
+def evaluate_font_similarity(reference_font_path, uploaded_font_path):
+    # フォントの比較処理（実際の比較ロジックは実際のフォントファイルに依存します）
+    # 例: フォントのハッシュ値を計算して比較する
+    with open(reference_font_path, 'rb') as rf:
+        reference_font_hash = hashlib.md5(rf.read()).hexdigest()
+
+    with open(uploaded_font_path, 'rb') as uf:
+        uploaded_font_hash = hashlib.md5(uf.read()).hexdigest()
+
+    return reference_font_hash == uploaded_font_hash
+
+# 文字列の類似度比率を計算する関数
+def calculate_similarity_score(reference_char, uploaded_text):
+    return SequenceMatcher(None, reference_char, uploaded_text).ratio()
 
 # ファイルアップロード
 uploaded_file = st.file_uploader("画像をアップロード", type=["jpg", "jpeg", "png"])
+
+# アップロードされたフォントファイルの保存先ディレクトリ
+upload_dir = 'uploaded_fonts'
+if not os.path.exists(upload_dir):
+    os.makedirs(upload_dir)
 
 # ストリームリットアプリケーションのメイン部分
 if uploaded_file is not None:
@@ -147,14 +170,32 @@ if uploaded_file is not None:
     if len(results) >= 2:
         st.error('一文字だけで再度アップロードしてください。')
     else:
-        # 結果を表示
-        text = ""
-        for result in results:
-            text += result[1] + "\n"
-        st.write(text)
+        text = results[0][1]
+
+        # OCRの結果を表示
+        st.write(f"OCRの結果: {text}")
 
         # ユーザが手本の文字を選ぶ
         reference_char = st.text_input("手本の文字を入力してください:", value=text[0])
+
+        # フォント差異の評価
+        reference_font_path = '玉ねぎ楷書激無料版v7改.ttf'
+        uploaded_font_path = os.path.join(upload_dir, 'uploaded_font.ttf')  # アップロードされたフォントの保存先
+        if not os.path.exists(uploaded_font_path):  # ファイルが存在しない場合は作成
+            with open(uploaded_font_path, 'wb'):
+                pass
+
+        # 文字の一致度を計算
+        font_similarity_score = evaluate_font_similarity(reference_font_path, uploaded_font_path)
+        similarity_score = calculate_similarity_score(reference_char, text)
+
+        # 総合的な採点スコアを計算
+        total_score = (font_similarity_score + similarity_score) / 2  # 例として単純な平均をとる
+
+        # 採点スコアを表示
+        st.write(f"フォント差異スコア: {font_similarity_score * 100:.2f}%")
+        st.write(f"一致度スコア: {similarity_score * 100:.2f}%")
+        st.write(f"総合的な採点スコア: {total_score * 100:.2f}%")
 
         # トリミングとリサイズ
         resized_image = crop_and_resize_character(image)  # PIL Imageオブジェクトを渡す
@@ -165,12 +206,3 @@ if uploaded_file is not None:
 
         # 処理した画像を表示
         st.image(final_image, caption='Processed Image', use_column_width=True)
-
-# # 正しい文字だけを抽出して表示
-# correct_text = ""
-# for result in results:
-#     if reference_char and result[1] == reference_char:
-#         correct_text = result[1]
-#         break
-#
-# st.write(f"正しい文字: {correct_text}")
