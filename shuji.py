@@ -3,17 +3,79 @@ import easyocr
 import cv2
 import numpy as np
 import hashlib
+import base64
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 from difflib import SequenceMatcher
+from babel import Locale
+from streamlit_drawable_canvas import st_canvas
+import random
 import os
+
+# 言語リソースの読み込み
+LANG_RESOURCES = {
+    'English': {
+        'title': 'Shuji',
+        'intro': 'Supports calligraphy practice.',
+        'upload_text': 'Please upload one character at a time.',
+        # 他のテキスト...
+    },
+    'Japanese': {
+        'title': '習字サポート',
+        'intro': '習字の練習をサポートします。',
+        'upload_text': '一文字だけアップロードしてください。',
+        # 他のテキスト...
+    },
+    'Korean': {
+        'title': '서예 지원',
+        'intro': '서예 연습을 지원합니다.',
+        'upload_text': '한 번에 한 글자만 업로드하십시오.',
+        # 他のテキスト...
+    },
+    'Mandarin Chinese': {
+        'title': '书法支持',
+        'intro': '支持书法练习。',
+        'upload_text': '请一次上传一个字符。',
+        # 他のテキスト...
+    },
+    'Spanish': {
+        'title': 'Apoyo a la caligrafía',
+        'intro': 'Apoya la práctica de la caligrafía.',
+        'upload_text': 'Por favor, suba un carácter a la vez.',
+        # 他のテキスト...
+    },
+    'French': {
+        'title': 'Soutien à la calligraphie',
+        'intro': 'Soutient la pratique de la calligraphie.',
+        'upload_text': 'Veuillez télécharger un caractère à la fois.',
+        # 他のテキスト...
+    },
+    'Portuguese': {
+        'title': 'Suporte à caligrafia',
+        'intro': 'Suporta a prática da caligrafia.',
+        'upload_text': 'Por favor, faça upload de um caractere de cada vez.',
+        # 他のテキスト...
+    }
+}
+
+# Streamlitアプリの言語設定
+def set_language(locale):
+    st.session_state.locale = locale
 
 # Streamlitページ設定
 st.set_page_config(page_title="習字サポート", layout="centered")
-st.title('Shuji')
-st.write('習字の練習をサポートします。')
-st.write('一文字だけアップロードしてください。')
 
+# 言語選択
+selected_lang = st.selectbox('Select Language', options=['English', 'Japanese', 'Korean', 'Mandarin Chinese', 'Spanish', 'French', 'Portuguese'], index=1)
+
+# 言語設定
+set_language(selected_lang)
+
+# テキストの表示
+st.title(LANG_RESOURCES[selected_lang]['title'])
+st.write(LANG_RESOURCES[selected_lang]['intro'])
+st.write(LANG_RESOURCES[selected_lang]['upload_text'])
+# 他のテキスト...
 
 # 画像から文字をトリミングする。
 def find_largest_bbox(contours):
@@ -206,3 +268,59 @@ if uploaded_file is not None:
 
         # 処理した画像を表示
         st.image(final_image, caption='Processed Image', use_column_width=True)
+
+#仮想習字
+# Canvasの幅と高さ
+canvas_width = 400
+canvas_height = 200
+
+# フォントのパス
+font_path = '玉ねぎ楷書激無料版v7改.ttf'
+
+# フォントのリスト
+onion_fonts = ['一', '右', '雨', '円', '王', '音', '下', '火', '花', '貝', '学', '気', '九', '玉', '空', '月', '犬', '見', '五', '口', '校', '左', '三', '山', '四', '子', '糸', '字', '耳', '七', '車', '手', '十', '出', '女', '小', '上', '森', '人', '水', '正', '生', '青', '夕', '石', '赤', '千', '川', '先', '乗', '事', '力', '研', '活', '消', '機', '暑', '勉', '必', '欠', '永', '館', '種', '終', '光', '始', '違', '械', '泳', '無', '有', '激', '容', '許', '様', '訪', '準', '覚', '訪', '覚', '訪', '覚', '訪', '覚', '訪', '覚', '視', '害', '審', '費', '航', '節', '算', '防', '裏', '役', '役']
+
+# 筆の太さ
+brush_size = 10
+
+# Canvasのセットアップ
+canvas_result = st_canvas(
+    fill_color="rgb(255, 255, 255)",  # 背景色を白に設定
+    stroke_width=brush_size,  # 筆の太さを動的に設定
+    stroke_color="rgb(0, 0, 0)",  # ペンの色を黒に設定
+    background_color="rgb(255, 255, 255)",  # Canvasの背景色を白に設定
+    height=canvas_height,
+    width=canvas_width,
+    drawing_mode="freedraw",
+    key="canvas",
+)
+# Canvasの横に玉ねぎフォントの文字を表示
+st.write("玉ねぎフォントお手本:")
+col1, col2 = st.columns(2)  # 2つのカラムを作成
+
+# 初回実行時にランダムな文字をセットアップ
+if 'random_char' not in st.session_state:
+    st.session_state.random_char = random.choice(onion_fonts)
+
+# カラム1: Canvasの横に玉ねぎフォントの文字を表示
+with col1:
+    # 玉ねぎフォントの文字を描画
+    random_char = st.session_state.random_char
+    font_size = 40
+    font = ImageFont.truetype(font_path, font_size)
+    img = Image.new("RGB", (font_size, font_size), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.text((0, 0), random_char, fill="black", font=font)
+
+    # 画像を表示
+    st.image(img, caption=random_char, use_column_width=True)
+
+    # 他の文字に変更するためのボタン
+    if st.button("他の文字に変更"):
+        random_char = random.choice(onion_fonts)
+        st.session_state.random_char = random_char
+        st.experimental_rerun()  # Canvasの描画をリフレッシュ
+
+# カラム2: Canvasの描画結果を表示
+with col2:
+    st.image(canvas_result.image_data, caption='Your Calligraphy', use_column_width=True)
